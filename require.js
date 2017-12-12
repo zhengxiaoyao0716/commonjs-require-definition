@@ -8,6 +8,7 @@
   var cache = {};
   var aliases = {};
   var has = {}.hasOwnProperty;
+  var extensions = ['', '.js', '.json', '.node']; // https://nodejs.org/api/modules.html#modules_all_together
 
   var expRe = /^\.\.?(\/|$)/;
   var expand = function(root, name) {
@@ -43,8 +44,18 @@
     return module.exports;
   };
 
-  var expandAlias = function(name) {
-    return aliases[name] ? expandAlias(aliases[name]) : name;
+  var expandAlias = function(raw) {
+    var name = aliases[raw] || raw;
+    var result;
+    var hasFound = extensions.some(function (s) {
+      var fullname = name + s;
+      if (!has.call(modules, fullname)) {
+        return false;
+      }
+      result = fullname;
+      return true;
+    });
+    return hasFound ? result : name;
   };
 
   var _resolve = function(name, dep) {
@@ -61,20 +72,14 @@
     throw new Error("Cannot find module '" + name + "' from '" + loaderPath + "'");
   };
 
+  require.__defineGetter__('extensions', function () { return extensions; }); // allow third-plugin custom suffix.
+
   require.alias = function(from, to) {
     aliases[to] = from;
   };
 
-  var extRe = /\.[^.\/]+$/;
   var indexRe = /\/index(\.[^\/]+)?$/;
   var addExtensions = function(bundle) {
-    if (extRe.test(bundle)) {
-      var alias = bundle.replace(extRe, '');
-      if (!has.call(aliases, alias) || aliases[alias].replace(extRe, '') === alias + '/index') {
-        aliases[alias] = bundle;
-      }
-    }
-
     if (indexRe.test(bundle)) {
       var iAlias = bundle.replace(indexRe, '');
       if (!has.call(aliases, iAlias)) {
